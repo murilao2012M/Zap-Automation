@@ -44,12 +44,21 @@ class Tenant(DatabaseModel):
     handoff_message: str = "Vou encaminhar sua conversa para um atendente humano."
     after_hours_message: str = "Nosso atendimento está fora do horário no momento. Deixe sua mensagem e retornaremos no próximo período útil."
     meta_access_token: str | None = None
+    meta_access_token_encrypted: str | None = None
     meta_phone_number_id: str | None = None
     meta_business_account_id: str | None = None
     meta_api_version: str = "v21.0"
     twilio_account_sid: str | None = None
+    twilio_account_sid_encrypted: str | None = None
     twilio_auth_token: str | None = None
+    twilio_auth_token_encrypted: str | None = None
     twilio_whatsapp_number: str | None = None
+    channel_setup_mode: Literal["self_service", "assisted"] = "self_service"
+    channel_credentials_scope: Literal["tenant_managed", "platform_managed"] = "tenant_managed"
+    channel_credentials_status: Literal["not_configured", "stored", "validated", "error"] = "not_configured"
+    channel_last_validated_at: datetime | None = None
+    channel_credentials_updated_at: datetime | None = None
+    channel_credentials_updated_by_email: str | None = None
     onboarding_completed: bool = False
 
 

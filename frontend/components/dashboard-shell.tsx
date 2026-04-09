@@ -18,6 +18,10 @@ import {
   type Plan,
   type RegisterUserPayload,
   type LocalMetaWebhookSimulationPayload,
+  type TenantBillingProfile,
+  type TenantBillingProfilePayload,
+  type TenantSenderOnboarding,
+  type TenantSenderOnboardingPayload,
   type UserSummary,
   type VerifyWebhookPayload,
   type WebhookPayload,
@@ -37,8 +41,10 @@ import {
   getMessageTemplates,
   getOperationEvents,
   getPlans,
+  getTenantBillingProfile,
   getTenantDashboard,
   getTenantHealth,
+  getTenantSenderOnboarding,
   getWhatsAppChannelConfig,
   handoffConversation,
   registerUser,
@@ -50,7 +56,11 @@ import {
   updateAutomationRule,
   updateBotSettings,
   updateMessageTemplate,
+  updateTenantBillingProfile,
+  updateTenantSenderOnboarding,
   updateWhatsAppChannelConfig,
+  submitTenantSenderOnboarding,
+  validateTenantSenderOnboarding,
   verifyWebhook,
 } from "@/lib/api";
 import {
@@ -133,6 +143,34 @@ const defaultChannelForm: WhatsAppChannelConfigPayload = {
   twilio_whatsapp_number: "",
 };
 
+const defaultBillingForm: TenantBillingProfilePayload = {
+  billing_company_name: "",
+  billing_contact_name: "",
+  billing_contact_email: "",
+  billing_contact_phone: "",
+  billing_document: "",
+  billing_address: "",
+  selected_plan: "starter",
+  contract_mode: "assisted",
+  billing_status: "draft",
+  checkout_url_override: "",
+  legal_notes: "",
+};
+
+const defaultSenderOnboardingForm: TenantSenderOnboardingPayload = {
+  provider: "simulation",
+  setup_mode: "self_service",
+  business_display_name: "",
+  sender_phone_number: "",
+  sender_country: "BR",
+  website_url: "",
+  use_existing_number: true,
+  contact_name: "",
+  contact_email: "",
+  contact_phone: "",
+  notes: "",
+};
+
 function defaultLocalMetaForm(tenantId: string): LocalMetaWebhookSimulationPayload {
   return {
     tenant_id: tenantId,
@@ -210,6 +248,8 @@ export function DashboardShell() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [botSettings, setBotSettings] = useState<BotSettings>(emptyBotSettings());
   const [channelConfig, setChannelConfig] = useState<WhatsAppChannelConfig | null>(null);
+  const [billingProfile, setBillingProfile] = useState<TenantBillingProfile | null>(null);
+  const [senderOnboarding, setSenderOnboarding] = useState<TenantSenderOnboarding | null>(null);
   const [operationEvents, setOperationEvents] = useState<OperationEvent[]>([]);
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [flows, setFlows] = useState<AutomationFlow[]>([]);
@@ -253,6 +293,14 @@ export function DashboardShell() {
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyResult, setVerifyResult] = useState<number | null>(null);
   const [verifyError, setVerifyError] = useState("");
+  const [billingForm, setBillingForm] = useState<TenantBillingProfilePayload>(defaultBillingForm);
+  const [billingSaving, setBillingSaving] = useState(false);
+  const [billingFeedback, setBillingFeedback] = useState("");
+  const [senderForm, setSenderForm] = useState<TenantSenderOnboardingPayload>(defaultSenderOnboardingForm);
+  const [senderSaving, setSenderSaving] = useState(false);
+  const [senderSubmitting, setSenderSubmitting] = useState(false);
+  const [senderValidating, setSenderValidating] = useState(false);
+  const [senderFeedback, setSenderFeedback] = useState("");
   const [channelForm, setChannelForm] = useState<WhatsAppChannelConfigPayload>(defaultChannelForm);
   const [channelSaving, setChannelSaving] = useState(false);
   const [channelFeedback, setChannelFeedback] = useState("");
@@ -308,13 +356,29 @@ export function DashboardShell() {
   }, [conversations]);
 
   async function loadEverything(currentToken: string, currentTenantId: string) {
-    const [meData, dashboardData, healthData, plansData, settingsData, channelData, rulesData, flowsData, templatesData, conversationsData, operationEventsData] = await Promise.all([
+    const [
+      meData,
+      dashboardData,
+      healthData,
+      plansData,
+      settingsData,
+      channelData,
+      billingData,
+      senderData,
+      rulesData,
+      flowsData,
+      templatesData,
+      conversationsData,
+      operationEventsData,
+    ] = await Promise.all([
       getMe(currentToken),
       getTenantDashboard(currentTenantId, currentToken),
       getTenantHealth(currentTenantId, currentToken),
       getPlans(),
       getBotSettings(currentTenantId, currentToken),
       getWhatsAppChannelConfig(currentTenantId, currentToken),
+      getTenantBillingProfile(currentTenantId, currentToken),
+      getTenantSenderOnboarding(currentTenantId, currentToken),
       getAutomationRules(currentTenantId, currentToken),
       getAutomationFlows(currentTenantId, currentToken),
       getMessageTemplates(currentTenantId, currentToken),
@@ -329,6 +393,8 @@ export function DashboardShell() {
     setPlans(plansData);
     setBotSettings(settingsData);
     setChannelConfig(channelData);
+    setBillingProfile(billingData);
+    setSenderOnboarding(senderData);
     setOperationEvents(operationEventsData);
     setChannelForm({
       provider: channelData.provider ?? "simulation",
@@ -339,6 +405,32 @@ export function DashboardShell() {
       twilio_account_sid: "",
       twilio_auth_token: "",
       twilio_whatsapp_number: channelData.twilio_whatsapp_number ?? "",
+    });
+    setBillingForm({
+      billing_company_name: billingData.billing_company_name ?? "",
+      billing_contact_name: billingData.billing_contact_name ?? "",
+      billing_contact_email: billingData.billing_contact_email ?? "",
+      billing_contact_phone: billingData.billing_contact_phone ?? "",
+      billing_document: billingData.billing_document ?? "",
+      billing_address: billingData.billing_address ?? "",
+      selected_plan: billingData.selected_plan ?? "starter",
+      contract_mode: billingData.contract_mode ?? "assisted",
+      billing_status: billingData.billing_status ?? "draft",
+      checkout_url_override: billingData.checkout_url_override ?? "",
+      legal_notes: billingData.legal_notes ?? "",
+    });
+    setSenderForm({
+      provider: senderData.provider ?? channelData.provider ?? "simulation",
+      setup_mode: senderData.setup_mode ?? "self_service",
+      business_display_name: senderData.business_display_name ?? "",
+      sender_phone_number: senderData.sender_phone_number ?? "",
+      sender_country: senderData.sender_country ?? "BR",
+      website_url: senderData.website_url ?? "",
+      use_existing_number: senderData.use_existing_number ?? true,
+      contact_name: senderData.contact_name ?? "",
+      contact_email: senderData.contact_email ?? "",
+      contact_phone: senderData.contact_phone ?? "",
+      notes: senderData.notes ?? "",
     });
     setRules(rulesData);
     setFlows(flowsData);
@@ -736,6 +828,80 @@ export function DashboardShell() {
     }
   }
 
+  async function handleSaveBilling(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token || !tenantId) return;
+
+    setBillingSaving(true);
+    setBillingFeedback("");
+
+    try {
+      const result = await updateTenantBillingProfile(tenantId, token, billingForm);
+      setBillingProfile(result);
+      await refreshAll();
+      setBillingFeedback("Faturamento do tenant salvo com sucesso.");
+    } catch (error) {
+      setBillingFeedback(error instanceof Error ? error.message : "Nao foi possivel salvar o faturamento do tenant.");
+    } finally {
+      setBillingSaving(false);
+    }
+  }
+
+  async function handleSaveSender(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token || !tenantId) return;
+
+    setSenderSaving(true);
+    setSenderFeedback("");
+
+    try {
+      const result = await updateTenantSenderOnboarding(tenantId, token, senderForm);
+      setSenderOnboarding(result);
+      await refreshAll();
+      setSenderFeedback("Briefing do sender salvo com sucesso.");
+    } catch (error) {
+      setSenderFeedback(error instanceof Error ? error.message : "Nao foi possivel salvar o onboarding do sender.");
+    } finally {
+      setSenderSaving(false);
+    }
+  }
+
+  async function handleSubmitSender() {
+    if (!token || !tenantId) return;
+
+    setSenderSubmitting(true);
+    setSenderFeedback("");
+
+    try {
+      const result = await submitTenantSenderOnboarding(tenantId, token);
+      setSenderOnboarding(result);
+      await refreshAll();
+      setSenderFeedback("Onboarding do sender avancou para a proxima etapa com sucesso.");
+    } catch (error) {
+      setSenderFeedback(error instanceof Error ? error.message : "Nao foi possivel avancar o onboarding do sender.");
+    } finally {
+      setSenderSubmitting(false);
+    }
+  }
+
+  async function handleValidateSender() {
+    if (!token || !tenantId) return;
+
+    setSenderValidating(true);
+    setSenderFeedback("");
+
+    try {
+      const result = await validateTenantSenderOnboarding(tenantId, token);
+      setSenderOnboarding(result);
+      await refreshAll();
+      setSenderFeedback("Sender validado com sucesso.");
+    } catch (error) {
+      setSenderFeedback(error instanceof Error ? error.message : "Nao foi possivel validar o sender.");
+    } finally {
+      setSenderValidating(false);
+    }
+  }
+
   async function handleSaveChannel(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token || !tenantId) return;
@@ -746,7 +912,12 @@ export function DashboardShell() {
     try {
       const result = await updateWhatsAppChannelConfig(tenantId, token, channelForm);
       setChannelConfig(result);
-      setChannelForm((current) => ({ ...current, access_token: "" }));
+      setChannelForm((current) => ({
+        ...current,
+        access_token: "",
+        twilio_account_sid: "",
+        twilio_auth_token: "",
+      }));
       await refreshAll();
       setChannelFeedback("Canal WhatsApp salvo com sucesso.");
     } catch (error) {
@@ -1132,6 +1303,16 @@ export function DashboardShell() {
               dashboard={dashboard}
               channelConfig={channelConfig}
               operationEvents={operationEvents}
+              billingProfile={billingProfile}
+              billingForm={billingForm}
+              billingSaving={billingSaving}
+              billingFeedback={billingFeedback}
+              senderOnboarding={senderOnboarding}
+              senderForm={senderForm}
+              senderSaving={senderSaving}
+              senderSubmitting={senderSubmitting}
+              senderValidating={senderValidating}
+              senderFeedback={senderFeedback}
               channelForm={channelForm}
               channelSaving={channelSaving}
               channelFeedback={channelFeedback}
@@ -1139,11 +1320,17 @@ export function DashboardShell() {
               onWebhookChange={setWebhookForm}
               onVerifyChange={setVerifyForm}
               onLocalMetaChange={setLocalMetaForm}
+              onBillingChange={setBillingForm}
+              onSenderChange={setSenderForm}
               onChannelChange={setChannelForm}
               onRegisterUser={handleRegisterUser}
               onSendWebhook={handleWebhookSubmit}
               onSimulateLocalMeta={handleSimulateLocalMeta}
               onVerifyWebhook={handleVerifyWebhook}
+              onSaveBilling={handleSaveBilling}
+              onSaveSender={handleSaveSender}
+              onSubmitSender={handleSubmitSender}
+              onValidateSender={handleValidateSender}
               onSaveChannel={handleSaveChannel}
             />
           </div>

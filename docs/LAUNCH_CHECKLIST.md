@@ -15,6 +15,7 @@
 ## Backend pronto para producao
 
 - Validar `MONGODB_URI` e `REDIS_URL` no ambiente final.
+- Definir `CREDENTIALS_ENCRYPTION_KEY` e `PUBLIC_BACKEND_BASE_URL` antes do go-live.
 - Confirmar que o endpoint raiz e as rotas criticas respondem sem stacktrace.
 - Revisar logs em producao e centralizar em um provedor.
 - Confirmar consumo do Redis Stream e da dead-letter queue.
@@ -24,6 +25,7 @@
 ## Produto vendavel
 
 - Revisar onboarding guiado de primeira conexao com WhatsApp.
+- Validar o fluxo novo de onboarding do sender e faturamento isolado por tenant no dashboard.
 - Conferir checkout e links comerciais dos planos Starter e Smarter.
 - Revisar paginas de Termos, Privacidade e LGPD com apoio juridico.
 - Configurar `SENTRY_DSN` no backend e `NEXT_PUBLIC_SENTRY_DSN` no frontend se for usar Sentry.

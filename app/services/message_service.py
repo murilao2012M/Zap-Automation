@@ -11,6 +11,7 @@ from app.schemas.domain import AIInsight, Contact, Conversation, Message
 from app.schemas.messaging import MessageProcessResult, WhatsAppWebhookPayload
 from app.services.ai_service import AIService
 from app.services.automation_service import AutomationService
+from app.services.credential_vault_service import CredentialVaultService
 from app.services.meta_whatsapp_service import MetaWhatsAppService
 from app.services.plan_service import PlanService
 from app.services.twilio_whatsapp_service import TwilioWhatsAppService
@@ -27,6 +28,7 @@ class MessageService:
         self.meta_service = MetaWhatsAppService()
         self.plan_service = PlanService(db)
         self.twilio_service = TwilioWhatsAppService()
+        self.vault = CredentialVaultService()
 
     async def _record_operation_event(
         self,
@@ -150,13 +152,25 @@ class MessageService:
         template_name: str | None = None,
         body_parameters: list[str] | None = None,
     ) -> dict[str, Any] | None:
-        access_token = tenant.get("meta_access_token")
+        access_token = self.vault.read_secret(
+            tenant,
+            plain_field="meta_access_token",
+            encrypted_field="meta_access_token_encrypted",
+        )
         phone_number_id = tenant.get("meta_phone_number_id")
 
         try:
             if tenant.get("channel_provider") == "twilio":
-                account_sid = tenant.get("twilio_account_sid")
-                auth_token = tenant.get("twilio_auth_token")
+                account_sid = self.vault.read_secret(
+                    tenant,
+                    plain_field="twilio_account_sid",
+                    encrypted_field="twilio_account_sid_encrypted",
+                )
+                auth_token = self.vault.read_secret(
+                    tenant,
+                    plain_field="twilio_auth_token",
+                    encrypted_field="twilio_auth_token_encrypted",
+                )
                 from_number = tenant.get("twilio_whatsapp_number")
                 if not account_sid or not auth_token or not from_number:
                     return None
@@ -235,7 +249,10 @@ class MessageService:
                 missing_credentials = [
                     field_name
                     for field_name in ("twilio_account_sid", "twilio_auth_token", "twilio_whatsapp_number")
-                    if not tenant.get(field_name)
+                    if not (
+                        tenant.get(field_name)
+                        or tenant.get(f"{field_name}_encrypted")
+                    )
                 ]
                 if missing_credentials:
                     await self._record_operation_event(
@@ -265,7 +282,10 @@ class MessageService:
                 missing_credentials = [
                     field_name
                     for field_name in ("meta_access_token", "meta_phone_number_id")
-                    if not tenant.get(field_name)
+                    if not (
+                        tenant.get(field_name)
+                        or tenant.get(f"{field_name}_encrypted")
+                    )
                 ]
                 if missing_credentials:
                     await self._record_operation_event(
@@ -295,9 +315,18 @@ class MessageService:
             **(metadata or {}),
             "provider": (
                 "twilio"
-                if tenant.get("channel_provider") == "twilio" and tenant.get("twilio_account_sid")
+                if tenant.get("channel_provider") == "twilio"
+                and (
+                    tenant.get("twilio_account_sid")
+                    or tenant.get("twilio_account_sid_encrypted")
+                )
                 else "meta"
-                if tenant.get("channel_provider") == "meta" and tenant.get("meta_phone_number_id") and tenant.get("meta_access_token")
+                if tenant.get("channel_provider") == "meta"
+                and tenant.get("meta_phone_number_id")
+                and (
+                    tenant.get("meta_access_token")
+                    or tenant.get("meta_access_token_encrypted")
+                )
                 else "internal_simulation"
             ),
             "provider_result": provider_result,
@@ -573,7 +602,9 @@ class MessageService:
         body = str(payload.get("Body", ""))
         contact_name = payload.get("ProfileName") or payload.get("WaId") or "Contato Twilio"
 
-        tenant = sanitize_mongo_document(await self.db.tenants.find_one({"twilio_whatsapp_number": to_number}))
+        tenant = sanitize_mongo_document(
+            await self.db.tenants.find_one({"twilio_whatsapp_number": {"$in": [to_number, to_value]}})
+        )
         if not tenant:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant Twilio nao encontrado")
 

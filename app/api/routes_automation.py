@@ -121,7 +121,11 @@ async def update_channel(
 ):
     assert_tenant_access(current_user, tenant_id, allowed_roles={"owner", "admin"})
     service = AutomationService(db)
-    channel = await service.update_channel_config(tenant_id, payload.model_dump(exclude_none=True))
+    channel = await service.update_channel_config(
+        tenant_id,
+        payload.model_dump(exclude_none=True),
+        actor_email=current_user.get("email"),
+    )
     await AuditService(db).record(
         tenant_id=tenant_id,
         actor_id=current_user.get("id"),

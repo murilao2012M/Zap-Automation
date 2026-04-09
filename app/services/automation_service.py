@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 
 from app.schemas.automation import BotSettingsResponse, BotSettingsUpdateRequest, WhatsAppChannelConfigResponse
 from app.schemas.domain import AutomationFlow, AutomationRule, MessageTemplate
+from app.services.credential_vault_service import CredentialVaultService
 from app.services.plan_service import PlanService
 from app.utils.serialization import sanitize_mongo_document
 
@@ -35,6 +36,7 @@ class AutomationService:
     def __init__(self, db):
         self.db = db
         self.plan_service = PlanService(db)
+        self.vault = CredentialVaultService()
 
     @staticmethod
     def _is_twilio_sandbox_number(value: str | None) -> bool:
@@ -320,15 +322,29 @@ class AutomationService:
         if not tenant:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant não encontrado")
 
-        access_token = tenant.get("meta_access_token")
+        access_token = self.vault.read_secret(
+            tenant,
+            plain_field="meta_access_token",
+            encrypted_field="meta_access_token_encrypted",
+        )
+        twilio_account_sid = self.vault.read_secret(
+            tenant,
+            plain_field="twilio_account_sid",
+            encrypted_field="twilio_account_sid_encrypted",
+        )
+        twilio_auth_token = self.vault.read_secret(
+            tenant,
+            plain_field="twilio_auth_token",
+            encrypted_field="twilio_auth_token_encrypted",
+        )
         provider = tenant.get("channel_provider", "simulation")
         twilio_number = tenant.get("twilio_whatsapp_number")
         connected = bool(
             (provider == "meta" and access_token and tenant.get("meta_phone_number_id"))
             or (
                 provider == "twilio"
-                and tenant.get("twilio_account_sid")
-                and tenant.get("twilio_auth_token")
+                and twilio_account_sid
+                and twilio_auth_token
                 and twilio_number
             )
         )
@@ -378,16 +394,38 @@ class AutomationService:
             phone_number_id=tenant.get("meta_phone_number_id"),
             business_account_id=tenant.get("meta_business_account_id"),
             api_version=tenant.get("meta_api_version", "v21.0"),
-            access_token_hint=f"{access_token[:6]}...{access_token[-4:]}" if access_token else None,
-            twilio_account_sid_hint=(
-                f"{tenant['twilio_account_sid'][:6]}...{tenant['twilio_account_sid'][-4:]}"
-                if tenant.get("twilio_account_sid")
-                else None
-            ),
+            access_token_hint=self.vault.build_hint(access_token),
+            twilio_account_sid_hint=self.vault.build_hint(twilio_account_sid),
             twilio_whatsapp_number=twilio_number,
+            credential_storage_mode=(
+                self.vault.detect_storage_mode(
+                    tenant,
+                    encrypted_field="meta_access_token_encrypted",
+                    plain_field="meta_access_token",
+                )
+                if provider == "meta"
+                else self.vault.detect_storage_mode(
+                    tenant,
+                    encrypted_field="twilio_auth_token_encrypted",
+                    plain_field="twilio_auth_token",
+                )
+            ),
+            credentials_updated_at=tenant.get("channel_credentials_updated_at").isoformat()
+            if tenant.get("channel_credentials_updated_at")
+            else None,
+            credentials_updated_by_email=tenant.get("channel_credentials_updated_by_email"),
+            last_validated_at=tenant.get("channel_last_validated_at").isoformat()
+            if tenant.get("channel_last_validated_at")
+            else None,
         )
 
-    async def update_channel_config(self, tenant_id: str, payload: dict) -> WhatsAppChannelConfigResponse:
+    async def update_channel_config(
+        self,
+        tenant_id: str,
+        payload: dict,
+        *,
+        actor_email: str | None = None,
+    ) -> WhatsAppChannelConfigResponse:
         tenant = sanitize_mongo_document(await self.db.tenants.find_one({"id": tenant_id}))
         if not tenant:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant nao encontrado")
@@ -397,18 +435,54 @@ class AutomationService:
         if requested_phone_id and requested_phone_id != current_phone_id and current_phone_id:
             await self.plan_service.enforce_limit(tenant_id, "numbers", attempted_total=2)
 
-        update_map = {
-            "channel_provider": payload.get("provider"),
+        provider = payload.get("provider") or tenant.get("channel_provider", "simulation")
+        now = datetime.utcnow()
+        meta_token_present = bool(
+            payload.get("access_token")
+            or tenant.get("meta_access_token")
+            or tenant.get("meta_access_token_encrypted")
+        )
+        meta_phone_present = bool(payload.get("phone_number_id") or tenant.get("meta_phone_number_id"))
+        twilio_sid_present = bool(
+            payload.get("twilio_account_sid")
+            or tenant.get("twilio_account_sid")
+            or tenant.get("twilio_account_sid_encrypted")
+        )
+        twilio_token_present = bool(
+            payload.get("twilio_auth_token")
+            or tenant.get("twilio_auth_token")
+            or tenant.get("twilio_auth_token_encrypted")
+        )
+        twilio_number_present = bool(payload.get("twilio_whatsapp_number") or tenant.get("twilio_whatsapp_number"))
+        update_map: dict[str, object] = {
+            "channel_provider": provider,
             "meta_phone_number_id": payload.get("phone_number_id"),
             "meta_business_account_id": payload.get("business_account_id"),
             "meta_api_version": payload.get("api_version"),
-            "meta_access_token": payload.get("access_token"),
-            "twilio_account_sid": payload.get("twilio_account_sid"),
-            "twilio_auth_token": payload.get("twilio_auth_token"),
             "twilio_whatsapp_number": payload.get("twilio_whatsapp_number"),
-            "updated_at": datetime.utcnow(),
+            "updated_at": now,
             "onboarding_completed": True,
+            "channel_credentials_status": (
+                "stored"
+                if (
+                    (provider == "meta" and meta_token_present and meta_phone_present)
+                    or (provider == "twilio" and twilio_sid_present and twilio_token_present and twilio_number_present)
+                )
+                else "not_configured"
+            ),
+            "channel_credentials_updated_at": now,
         }
+        if actor_email:
+            update_map["channel_credentials_updated_by_email"] = actor_email
+        if "access_token" in payload:
+            update_map["meta_access_token_encrypted"] = self.vault.encrypt(payload.get("access_token"))
+            update_map["meta_access_token"] = None
+        if "twilio_account_sid" in payload:
+            update_map["twilio_account_sid_encrypted"] = self.vault.encrypt(payload.get("twilio_account_sid"))
+            update_map["twilio_account_sid"] = None
+        if "twilio_auth_token" in payload:
+            update_map["twilio_auth_token_encrypted"] = self.vault.encrypt(payload.get("twilio_auth_token"))
+            update_map["twilio_auth_token"] = None
         await self.db.tenants.update_one(
             {"id": tenant_id},
             {"$set": {key: value for key, value in update_map.items() if value is not None}},

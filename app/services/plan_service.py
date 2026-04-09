@@ -138,11 +138,15 @@ class PlanService:
                 "key": "channel",
                 "label": "Canal WhatsApp conectado",
                 "completed": bool(
-                    (tenant.get("channel_provider") == "meta" and tenant.get("meta_phone_number_id") and tenant.get("meta_access_token"))
+                    (
+                        tenant.get("channel_provider") == "meta"
+                        and tenant.get("meta_phone_number_id")
+                        and (tenant.get("meta_access_token") or tenant.get("meta_access_token_encrypted"))
+                    )
                     or (
                         tenant.get("channel_provider") == "twilio"
-                        and tenant.get("twilio_account_sid")
-                        and tenant.get("twilio_auth_token")
+                        and (tenant.get("twilio_account_sid") or tenant.get("twilio_account_sid_encrypted"))
+                        and (tenant.get("twilio_auth_token") or tenant.get("twilio_auth_token_encrypted"))
                         and tenant.get("twilio_whatsapp_number")
                     )
                 ),

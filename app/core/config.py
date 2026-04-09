@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     mongodb_server_selection_timeout_ms: int = 5000
     frontend_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     trusted_hosts: str = "localhost,127.0.0.1"
+    public_backend_base_url: str = ""
     redis_url: str = "redis://localhost:6379/0"
     redis_stream_enabled: bool = False
     redis_stream_consumer_enabled: bool = True
@@ -43,6 +44,7 @@ class Settings(BaseSettings):
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
     twilio_whatsapp_number: str = ""
+    credentials_encryption_key: str = ""
     openai_api_key: str = ""
     sentry_dsn: str = ""
     sentry_traces_sample_rate: float = 0.1

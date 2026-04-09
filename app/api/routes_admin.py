@@ -3,12 +3,17 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import assert_tenant_access, get_current_user, get_db
+from app.schemas.tenant_setup import (
+    TenantBillingProfileUpdateRequest,
+    TenantSenderOnboardingUpdateRequest,
+)
 from app.schemas.common import APIResponse
 from app.schemas.messaging import ManualConversationReplyRequest
 from app.services.audit_service import AuditService
 from app.services.message_service import MessageService
 from app.services.metrics_service import MetricsService
 from app.services.plan_service import PlanService
+from app.services.tenant_setup_service import TenantSetupService
 from app.utils.serialization import sanitize_mongo_document
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -52,6 +57,126 @@ async def tenant_dashboard(tenant_id: str, db=Depends(get_db), current_user=Depe
             "onboarding": commercial["onboarding"],
         },
     )
+
+
+@router.get("/tenants/{tenant_id}/billing", response_model=APIResponse)
+async def tenant_billing_profile(
+    tenant_id: str,
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    assert_tenant_access(current_user, tenant_id)
+    profile = await TenantSetupService(db).get_billing_profile(tenant_id)
+    return APIResponse(message="Faturamento carregado com sucesso", data=profile.model_dump())
+
+
+@router.put("/tenants/{tenant_id}/billing", response_model=APIResponse)
+async def update_tenant_billing_profile(
+    tenant_id: str,
+    payload: TenantBillingProfileUpdateRequest,
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    assert_tenant_access(current_user, tenant_id, allowed_roles={"owner", "admin"})
+    profile = await TenantSetupService(db).update_billing_profile(
+        tenant_id,
+        payload.model_dump(exclude_none=True),
+        actor_email=current_user.get("email"),
+    )
+    await AuditService(db).record(
+        tenant_id=tenant_id,
+        actor_id=current_user.get("id"),
+        actor_email=current_user.get("email"),
+        action="tenant.billing_updated",
+        resource_type="tenant_billing_profile",
+        resource_id=tenant_id,
+        detail="Perfil comercial e de faturamento atualizado",
+        metadata={"fields": sorted(payload.model_dump(exclude_none=True).keys())},
+    )
+    return APIResponse(message="Faturamento atualizado com sucesso", data=profile.model_dump())
+
+
+@router.get("/tenants/{tenant_id}/sender-onboarding", response_model=APIResponse)
+async def tenant_sender_onboarding(
+    tenant_id: str,
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    assert_tenant_access(current_user, tenant_id)
+    onboarding = await TenantSetupService(db).get_sender_onboarding(tenant_id)
+    return APIResponse(message="Onboarding do sender carregado com sucesso", data=onboarding.model_dump())
+
+
+@router.put("/tenants/{tenant_id}/sender-onboarding", response_model=APIResponse)
+async def update_tenant_sender_onboarding(
+    tenant_id: str,
+    payload: TenantSenderOnboardingUpdateRequest,
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    assert_tenant_access(current_user, tenant_id, allowed_roles={"owner", "admin"})
+    onboarding = await TenantSetupService(db).update_sender_onboarding(
+        tenant_id,
+        payload.model_dump(exclude_none=True),
+        actor_email=current_user.get("email"),
+    )
+    await AuditService(db).record(
+        tenant_id=tenant_id,
+        actor_id=current_user.get("id"),
+        actor_email=current_user.get("email"),
+        action="tenant.sender_onboarding_updated",
+        resource_type="tenant_sender_onboarding",
+        resource_id=tenant_id,
+        detail="Briefing do sender atualizado",
+        metadata={"fields": sorted(payload.model_dump(exclude_none=True).keys())},
+    )
+    return APIResponse(message="Onboarding do sender atualizado com sucesso", data=onboarding.model_dump())
+
+
+@router.post("/tenants/{tenant_id}/sender-onboarding/submit", response_model=APIResponse)
+async def submit_tenant_sender_onboarding(
+    tenant_id: str,
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    assert_tenant_access(current_user, tenant_id, allowed_roles={"owner", "admin"})
+    onboarding = await TenantSetupService(db).submit_sender_onboarding(
+        tenant_id,
+        actor_email=current_user.get("email"),
+    )
+    await AuditService(db).record(
+        tenant_id=tenant_id,
+        actor_id=current_user.get("id"),
+        actor_email=current_user.get("email"),
+        action="tenant.sender_onboarding_submitted",
+        resource_type="tenant_sender_onboarding",
+        resource_id=tenant_id,
+        detail="Onboarding do sender enviado para acompanhamento",
+    )
+    return APIResponse(message="Onboarding do sender enviado com sucesso", data=onboarding.model_dump())
+
+
+@router.post("/tenants/{tenant_id}/sender-onboarding/validate", response_model=APIResponse)
+async def validate_tenant_sender_onboarding(
+    tenant_id: str,
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    assert_tenant_access(current_user, tenant_id, allowed_roles={"owner", "admin"})
+    onboarding = await TenantSetupService(db).validate_sender_onboarding(
+        tenant_id,
+        actor_email=current_user.get("email"),
+    )
+    await AuditService(db).record(
+        tenant_id=tenant_id,
+        actor_id=current_user.get("id"),
+        actor_email=current_user.get("email"),
+        action="tenant.sender_onboarding_validated",
+        resource_type="tenant_sender_onboarding",
+        resource_id=tenant_id,
+        detail="Sender validado e marcado como pronto para operacao",
+    )
+    return APIResponse(message="Sender validado com sucesso", data=onboarding.model_dump())
 
 
 @router.get("/tenants/{tenant_id}/conversations", response_model=APIResponse)

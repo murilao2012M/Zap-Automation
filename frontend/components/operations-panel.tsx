@@ -4,6 +4,10 @@ import type {
   LocalMetaWebhookSimulationPayload,
   Plan,
   RegisterUserPayload,
+  TenantBillingProfile,
+  TenantBillingProfilePayload,
+  TenantSenderOnboarding,
+  TenantSenderOnboardingPayload,
   TenantSummary,
   UserSummary,
   VerifyWebhookPayload,
@@ -13,6 +17,7 @@ import type {
   WhatsAppChannelConfigPayload,
   OperationEvent,
 } from "@/lib/api";
+import { TenantSetupPanel } from "@/components/tenant-setup-panel";
 
 type Props = {
   teamForm: Omit<RegisterUserPayload, "tenant_id">;
@@ -38,6 +43,16 @@ type Props = {
   dashboard: DashboardResponse | null;
   channelConfig: WhatsAppChannelConfig | null;
   operationEvents: OperationEvent[];
+  billingProfile: TenantBillingProfile | null;
+  billingForm: TenantBillingProfilePayload;
+  billingSaving: boolean;
+  billingFeedback: string;
+  senderOnboarding: TenantSenderOnboarding | null;
+  senderForm: TenantSenderOnboardingPayload;
+  senderSaving: boolean;
+  senderSubmitting: boolean;
+  senderValidating: boolean;
+  senderFeedback: string;
   channelForm: WhatsAppChannelConfigPayload;
   channelSaving: boolean;
   channelFeedback: string;
@@ -45,11 +60,17 @@ type Props = {
   onWebhookChange: (form: WebhookPayload) => void;
   onVerifyChange: (form: VerifyWebhookPayload) => void;
   onLocalMetaChange: (form: LocalMetaWebhookSimulationPayload) => void;
+  onBillingChange: (form: TenantBillingProfilePayload) => void;
+  onSenderChange: (form: TenantSenderOnboardingPayload) => void;
   onChannelChange: (form: WhatsAppChannelConfigPayload) => void;
   onRegisterUser: (event: React.FormEvent<HTMLFormElement>) => void;
   onSendWebhook: (event: React.FormEvent<HTMLFormElement>) => void;
   onSimulateLocalMeta: (event: React.FormEvent<HTMLFormElement>) => void;
   onVerifyWebhook: (event: React.FormEvent<HTMLFormElement>) => void;
+  onSaveBilling: (event: React.FormEvent<HTMLFormElement>) => void;
+  onSaveSender: (event: React.FormEvent<HTMLFormElement>) => void;
+  onSubmitSender: () => void;
+  onValidateSender: () => void;
   onSaveChannel: (event: React.FormEvent<HTMLFormElement>) => void;
 };
 
@@ -131,6 +152,16 @@ export function OperationsPanel({
   dashboard,
   channelConfig,
   operationEvents,
+  billingProfile,
+  billingForm,
+  billingSaving,
+  billingFeedback,
+  senderOnboarding,
+  senderForm,
+  senderSaving,
+  senderSubmitting,
+  senderValidating,
+  senderFeedback,
   channelForm,
   channelSaving,
   channelFeedback,
@@ -138,11 +169,17 @@ export function OperationsPanel({
   onWebhookChange,
   onVerifyChange,
   onLocalMetaChange,
+  onBillingChange,
+  onSenderChange,
   onChannelChange,
   onRegisterUser,
   onSendWebhook,
   onSimulateLocalMeta,
   onVerifyWebhook,
+  onSaveBilling,
+  onSaveSender,
+  onSubmitSender,
+  onValidateSender,
   onSaveChannel,
 }: Props) {
   const publicApiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
@@ -199,6 +236,28 @@ export function OperationsPanel({
 
   return (
     <>
+      <TenantSetupPanel
+        billingProfile={billingProfile}
+        billingForm={billingForm}
+        billingSaving={billingSaving}
+        billingFeedback={billingFeedback}
+        senderOnboarding={senderOnboarding}
+        senderForm={senderForm}
+        senderSaving={senderSaving}
+        senderSubmitting={senderSubmitting}
+        senderValidating={senderValidating}
+        senderFeedback={senderFeedback}
+        channelConfig={channelConfig}
+        channelForm={channelForm}
+        onBillingChange={onBillingChange}
+        onSenderChange={onSenderChange}
+        onChannelChange={onChannelChange}
+        onSaveBilling={onSaveBilling}
+        onSaveSender={onSaveSender}
+        onSubmitSender={onSubmitSender}
+        onValidateSender={onValidateSender}
+      />
+
       <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="panel-shell">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">

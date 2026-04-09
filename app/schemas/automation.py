@@ -45,6 +45,10 @@ class WhatsAppChannelConfigResponse(BaseModel):
     access_token_hint: str | None = None
     twilio_account_sid_hint: str | None = None
     twilio_whatsapp_number: str | None = None
+    credential_storage_mode: Literal["none", "encrypted_at_rest", "legacy_plaintext"] = "none"
+    credentials_updated_at: str | None = None
+    credentials_updated_by_email: str | None = None
+    last_validated_at: str | None = None
 
 
 class WhatsAppChannelConfigUpdateRequest(BaseModel):

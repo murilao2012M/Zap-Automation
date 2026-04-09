@@ -4,10 +4,12 @@ from app.api.deps import get_db
 from app.core.config import get_settings
 from app.schemas.common import APIResponse
 from app.schemas.messaging import LocalMetaWebhookSimulationRequest, WhatsAppWebhookPayload
+from app.services.credential_vault_service import CredentialVaultService
 from app.services.meta_whatsapp_service import MetaWhatsAppService
 from app.services.message_service import MessageService
 from app.services.twilio_whatsapp_service import TwilioWhatsAppService
 from app.services.webhook_queue_service import WebhookQueueService
+from app.utils.serialization import sanitize_mongo_document
 
 router = APIRouter(prefix="/webhook/whatsapp", tags=["webhook"])
 
@@ -130,12 +132,29 @@ async def receive_twilio_webhook(
     payload = {key: value for key, value in form.items()}
     settings = get_settings()
     twilio_service = TwilioWhatsAppService()
+    vault = CredentialVaultService()
     service = MessageService(db)
     queue_service = WebhookQueueService(db)
     if settings.app_env != "development":
-        if not settings.twilio_auth_token:
+        tenant = None
+        tenant_auth_token = None
+        to_number = payload.get("To")
+        if to_number:
+            normalized_to = str(to_number).replace("whatsapp:", "").strip()
+            tenant = sanitize_mongo_document(
+                await db.tenants.find_one({"twilio_whatsapp_number": {"$in": [to_number, normalized_to]}})
+            )
+            if tenant:
+                tenant_auth_token = vault.read_secret(
+                    tenant,
+                    plain_field="twilio_auth_token",
+                    encrypted_field="twilio_auth_token_encrypted",
+                )
+
+        validation_token = tenant_auth_token or settings.twilio_auth_token
+        if not validation_token:
             raise HTTPException(status_code=503, detail="Webhook Twilio sem segredo configurado")
-        if not twilio_service.validate_signature(str(request.url), payload, x_twilio_signature, settings.twilio_auth_token):
+        if not twilio_service.validate_signature(str(request.url), payload, x_twilio_signature, validation_token):
             raise HTTPException(status_code=403, detail="Assinatura do webhook Twilio invalida")
     if queue_service.enabled:
         stream_id = await queue_service.enqueue_twilio_webhook(payload)

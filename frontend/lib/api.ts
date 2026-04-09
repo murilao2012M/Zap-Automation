@@ -304,6 +304,10 @@ export type WhatsAppChannelConfig = {
   access_token_hint?: string | null;
   twilio_account_sid_hint?: string | null;
   twilio_whatsapp_number?: string | null;
+  credential_storage_mode: "none" | "encrypted_at_rest" | "legacy_plaintext";
+  credentials_updated_at?: string | null;
+  credentials_updated_by_email?: string | null;
+  last_validated_at?: string | null;
 };
 
 export type WhatsAppChannelConfigPayload = {
@@ -316,6 +320,80 @@ export type WhatsAppChannelConfigPayload = {
   twilio_auth_token?: string;
   twilio_whatsapp_number?: string;
 };
+
+export type TenantBillingProfile = {
+  tenant_id: string;
+  billing_company_name: string;
+  billing_contact_name: string;
+  billing_contact_email: string;
+  billing_contact_phone: string;
+  billing_document: string;
+  billing_address: string;
+  selected_plan: "starter" | "smarter";
+  contract_mode: "self_service" | "assisted" | "custom";
+  billing_status: "draft" | "pending_checkout" | "active" | "past_due" | "paused";
+  checkout_url_override?: string | null;
+  checkout_url?: string | null;
+  checkout_source: "tenant_override" | "plan_default" | "manual_quote" | "not_configured";
+  external_customer_id?: string | null;
+  external_subscription_id?: string | null;
+  legal_notes?: string | null;
+  next_action: string;
+  updated_at?: string | null;
+  updated_by_email?: string | null;
+};
+
+export type TenantBillingProfilePayload = Partial<
+  Omit<TenantBillingProfile, "tenant_id" | "checkout_url" | "checkout_source" | "next_action" | "updated_at" | "updated_by_email">
+>;
+
+export type TenantSenderOnboarding = {
+  tenant_id: string;
+  provider: "simulation" | "meta" | "twilio";
+  setup_mode: "self_service" | "assisted";
+  status:
+    | "draft"
+    | "submitted"
+    | "awaiting_customer"
+    | "awaiting_operator"
+    | "awaiting_provider"
+    | "ready_for_validation"
+    | "connected"
+    | "rejected";
+  business_display_name: string;
+  sender_phone_number: string;
+  sender_country: string;
+  website_url: string;
+  use_existing_number: boolean;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
+  notes?: string | null;
+  provider_portal_label?: string | null;
+  webhook_url?: string | null;
+  requires_operator_action: boolean;
+  next_action: string;
+  last_submitted_at?: string | null;
+  validated_at?: string | null;
+  updated_at?: string | null;
+  updated_by_email?: string | null;
+};
+
+export type TenantSenderOnboardingPayload = Partial<
+  Omit<
+    TenantSenderOnboarding,
+    | "tenant_id"
+    | "status"
+    | "provider_portal_label"
+    | "webhook_url"
+    | "requires_operator_action"
+    | "next_action"
+    | "last_submitted_at"
+    | "validated_at"
+    | "updated_at"
+    | "updated_by_email"
+  >
+>;
 
 export type HealthResponse = {
   tenant_id: string;
@@ -444,6 +522,58 @@ export async function getTenantHealth(tenantId: string, token: string): Promise<
   return requestJson<HealthResponse>(`${API_URL}/api/v1/admin/tenants/${tenantId}/health`, {
     headers: buildHeaders(token),
     cache: "no-store",
+  });
+}
+
+export async function getTenantBillingProfile(tenantId: string, token: string): Promise<TenantBillingProfile> {
+  return requestJson<TenantBillingProfile>(`${API_URL}/api/v1/admin/tenants/${tenantId}/billing`, {
+    headers: buildHeaders(token),
+    cache: "no-store",
+  });
+}
+
+export async function updateTenantBillingProfile(
+  tenantId: string,
+  token: string,
+  payload: TenantBillingProfilePayload,
+): Promise<TenantBillingProfile> {
+  return requestJson<TenantBillingProfile>(`${API_URL}/api/v1/admin/tenants/${tenantId}/billing`, {
+    method: "PUT",
+    headers: buildHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getTenantSenderOnboarding(tenantId: string, token: string): Promise<TenantSenderOnboarding> {
+  return requestJson<TenantSenderOnboarding>(`${API_URL}/api/v1/admin/tenants/${tenantId}/sender-onboarding`, {
+    headers: buildHeaders(token),
+    cache: "no-store",
+  });
+}
+
+export async function updateTenantSenderOnboarding(
+  tenantId: string,
+  token: string,
+  payload: TenantSenderOnboardingPayload,
+): Promise<TenantSenderOnboarding> {
+  return requestJson<TenantSenderOnboarding>(`${API_URL}/api/v1/admin/tenants/${tenantId}/sender-onboarding`, {
+    method: "PUT",
+    headers: buildHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function submitTenantSenderOnboarding(tenantId: string, token: string): Promise<TenantSenderOnboarding> {
+  return requestJson<TenantSenderOnboarding>(`${API_URL}/api/v1/admin/tenants/${tenantId}/sender-onboarding/submit`, {
+    method: "POST",
+    headers: buildHeaders(token),
+  });
+}
+
+export async function validateTenantSenderOnboarding(tenantId: string, token: string): Promise<TenantSenderOnboarding> {
+  return requestJson<TenantSenderOnboarding>(`${API_URL}/api/v1/admin/tenants/${tenantId}/sender-onboarding/validate`, {
+    method: "POST",
+    headers: buildHeaders(token),
   });
 }
 

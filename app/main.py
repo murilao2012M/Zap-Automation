@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pymongo.errors import PyMongoError
+import sentry_sdk
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.routes_admin import router as admin_router
@@ -15,8 +16,8 @@ from app.api.routes_catalog import router as catalog_router
 from app.api.routes_webhook import router as webhook_router
 from app.core.config import get_settings
 from app.core.rate_limit import SimpleRateLimitMiddleware
-from app.db.mongo import close_mongo_connection, get_database
-from app.db.redis import close_redis_connection
+from app.db.mongo import close_mongo_connection, connect_to_mongo, get_database
+from app.db.redis import close_redis_connection, get_redis
 from app.schemas.common import APIResponse
 from app.services.bootstrap_service import BootstrapService
 from app.services.webhook_queue_service import WebhookQueueService
@@ -49,6 +50,18 @@ async def lifespan(_: FastAPI):
 
 
 settings = get_settings()
+
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.app_env,
+        send_default_pii=settings.sentry_send_default_pii,
+        traces_sample_rate=settings.sentry_traces_sample_rate,
+        profile_session_sample_rate=settings.sentry_profiles_sample_rate,
+        profile_lifecycle="trace" if settings.sentry_profiles_sample_rate > 0 else None,
+        enable_logs=settings.sentry_enable_logs,
+    )
+
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
@@ -127,5 +140,50 @@ async def healthcheck():
             "environment": settings.app_env,
             "docs": "/docs",
             "api_prefix": settings.api_prefix,
+        },
+    )
+
+
+@app.get("/healthz")
+async def liveness_check():
+    return {
+        "success": True,
+        "message": "Servico ativo",
+        "data": {
+            "environment": settings.app_env,
+            "service": settings.app_name,
+        },
+    }
+
+
+@app.get("/readyz")
+async def readiness_check():
+    checks = {
+        "application": "ok",
+        "mongo": "pending",
+        "redis": "pending",
+    }
+    status_code = 200
+
+    try:
+        await connect_to_mongo().admin.command("ping")
+        checks["mongo"] = "ok"
+    except Exception as exc:  # pragma: no cover - readiness path
+        checks["mongo"] = f"error:{type(exc).__name__}"
+        status_code = 503
+
+    try:
+        await get_redis().ping()
+        checks["redis"] = "ok"
+    except Exception as exc:  # pragma: no cover - readiness path
+        checks["redis"] = f"error:{type(exc).__name__}"
+        status_code = 503
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "success": status_code == 200,
+            "message": "Servico pronto" if status_code == 200 else "Dependencias indisponiveis",
+            "data": checks,
         },
     )

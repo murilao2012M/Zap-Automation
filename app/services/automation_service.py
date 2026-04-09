@@ -37,6 +37,13 @@ class AutomationService:
         self.plan_service = PlanService(db)
 
     @staticmethod
+    def _is_twilio_sandbox_number(value: str | None) -> bool:
+        if not value:
+            return False
+        normalized = "".join(char for char in value if char.isdigit() or char == "+")
+        return normalized in {"+14155238886", "14155238886"}
+
+    @staticmethod
     def default_rule_templates() -> list[dict]:
         return [
             {
@@ -314,18 +321,60 @@ class AutomationService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant não encontrado")
 
         access_token = tenant.get("meta_access_token")
+        provider = tenant.get("channel_provider", "simulation")
+        twilio_number = tenant.get("twilio_whatsapp_number")
+        connected = bool(
+            (provider == "meta" and access_token and tenant.get("meta_phone_number_id"))
+            or (
+                provider == "twilio"
+                and tenant.get("twilio_account_sid")
+                and tenant.get("twilio_auth_token")
+                and twilio_number
+            )
+        )
+        sandbox_mode = provider == "twilio" and self._is_twilio_sandbox_number(twilio_number)
+        provider_label = {
+            "simulation": "Simulacao local",
+            "meta": "Meta Cloud API",
+            "twilio": "Twilio WhatsApp",
+        }.get(provider, "Canal WhatsApp")
+
+        if provider == "simulation":
+            setup_stage = "simulation"
+            setup_title = "Escolha um canal para operar"
+            setup_detail = "A simulacao ajuda a validar o produto, mas ainda nao conecta um numero real de WhatsApp."
+            requires_assisted_setup = False
+        elif provider == "twilio" and not connected:
+            setup_stage = "connect_channel"
+            setup_title = "Conecte o numero da Twilio"
+            setup_detail = "Preencha SID, Auth Token e numero WhatsApp para liberar o envio real pelo dashboard."
+            requires_assisted_setup = True
+        elif provider == "twilio" and sandbox_mode:
+            setup_stage = "validate_channel"
+            setup_title = "Sandbox ativo, pronto apenas para testes"
+            setup_detail = "O sandbox da Twilio exige join por participante. Para lancamento, troque para um sender proprio."
+            requires_assisted_setup = True
+        elif provider == "meta" and not connected:
+            setup_stage = "connect_channel"
+            setup_title = "Conecte o numero da Meta"
+            setup_detail = "Preencha token e Phone Number ID para liberar o envio real pelo dashboard."
+            requires_assisted_setup = True
+        else:
+            setup_stage = "ready"
+            setup_title = "Canal pronto para operar"
+            setup_detail = "O numero esta conectado e o dashboard pode operar conversas reais."
+            requires_assisted_setup = False
+
         return WhatsAppChannelConfigResponse(
             tenant_id=tenant_id,
-            connected=bool(
-                (tenant.get("channel_provider") == "meta" and access_token and tenant.get("meta_phone_number_id"))
-                or (
-                    tenant.get("channel_provider") == "twilio"
-                    and tenant.get("twilio_account_sid")
-                    and tenant.get("twilio_auth_token")
-                    and tenant.get("twilio_whatsapp_number")
-                )
-            ),
-            provider=tenant.get("channel_provider", "simulation"),
+            connected=connected,
+            provider=provider,
+            provider_label=provider_label,
+            sandbox_mode=sandbox_mode,
+            requires_assisted_setup=requires_assisted_setup,
+            setup_stage=setup_stage,
+            setup_title=setup_title,
+            setup_detail=setup_detail,
             phone_number_id=tenant.get("meta_phone_number_id"),
             business_account_id=tenant.get("meta_business_account_id"),
             api_version=tenant.get("meta_api_version", "v21.0"),
@@ -335,7 +384,7 @@ class AutomationService:
                 if tenant.get("twilio_account_sid")
                 else None
             ),
-            twilio_whatsapp_number=tenant.get("twilio_whatsapp_number"),
+            twilio_whatsapp_number=twilio_number,
         )
 
     async def update_channel_config(self, tenant_id: str, payload: dict) -> WhatsAppChannelConfigResponse:

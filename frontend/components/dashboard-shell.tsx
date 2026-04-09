@@ -787,9 +787,11 @@ export function DashboardShell() {
       });
       setReplyDraft("");
       setReplyFeedback("Mensagem humana enviada com sucesso.");
+      await refreshAll();
       await refreshConversationsOnly();
     } catch (error) {
       setReplyError(error instanceof Error ? error.message : "Não foi possível enviar a resposta humana.");
+      await refreshAll().catch(() => undefined);
     } finally {
       setReplying(false);
     }

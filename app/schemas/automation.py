@@ -33,6 +33,12 @@ class WhatsAppChannelConfigResponse(BaseModel):
     tenant_id: str
     connected: bool
     provider: Literal["simulation", "meta", "twilio"] = "simulation"
+    provider_label: str = "Simulacao local"
+    sandbox_mode: bool = False
+    requires_assisted_setup: bool = False
+    setup_stage: Literal["simulation", "connect_channel", "validate_channel", "ready"] = "simulation"
+    setup_title: str = "Modo de simulacao ativo"
+    setup_detail: str = "Use a simulacao para validar o fluxo antes de conectar um numero real."
     phone_number_id: str | None = None
     business_account_id: str | None = None
     api_version: str = "v21.0"

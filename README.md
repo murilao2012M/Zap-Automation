@@ -41,6 +41,7 @@ docker compose up
 - `WHATSAPP_APP_SECRET`: segredo do app para validar assinatura do webhook
 - `WHATSAPP_API_VERSION`: versao do Graph API, ex. `v21.0`
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_NUMBER`: credenciais do canal Twilio
+- `SENTRY_DSN`: monitoramento de erros e traces no backend
 - `PUBLIC_CHECKOUT_STARTER_URL` e `PUBLIC_CHECKOUT_SMARTER_URL`: links de compra/upgrade
 - `RATE_LIMIT_REQUESTS` e `RATE_LIMIT_WINDOW_SECONDS`: limitador de requisicoes do MVP
 
@@ -61,6 +62,12 @@ docker compose up
 - validar webhook GET em `GET /api/v1/webhook/whatsapp?hub.mode=subscribe&hub.challenge=123456&hub.verify_token=meta-verify-token`
 - simular mensagem simples pelo painel em `Operacoes > Simular mensagem`
 - simular payload realista da Meta pelo painel em `Operacoes > Simular evento Meta`
+
+## Endpoints de monitoramento
+
+- Backend liveness: `GET /healthz`
+- Backend readiness: `GET /readyz`
+- Frontend liveness: `GET /api/health`
 
 ## Credenciais iniciais
 

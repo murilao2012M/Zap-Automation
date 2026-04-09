@@ -2,11 +2,18 @@
 
 import Link from "next/link";
 
+import { buildWhatsAppUrl, sitePublicConfig } from "@/lib/site-config";
+
 type Props = {
   compact?: boolean;
 };
 
 export function SiteFooter({ compact = false }: Props) {
+  const salesWhatsAppUrl = buildWhatsAppUrl(
+    sitePublicConfig.contactWhatsApp,
+    "Oi! Quero conhecer o Zap Automation para a minha empresa.",
+  );
+
   return (
     <footer className={`relative mt-6 w-full ${compact ? "pb-3" : "pb-4 sm:pb-6"}`}>
       <div className="mx-auto w-full max-w-[1620px] px-3 sm:px-5 lg:px-8">
@@ -17,8 +24,8 @@ export function SiteFooter({ compact = false }: Props) {
                 Zap Automation
               </p>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--color-muted)]">
-                Plataforma para vender, atender e automatizar operações no WhatsApp com mais
-                controle, velocidade e inteligência.
+                Plataforma para vender, atender e automatizar operacoes no WhatsApp com mais
+                controle, velocidade e inteligencia.
               </p>
             </div>
 
@@ -35,12 +42,23 @@ export function SiteFooter({ compact = false }: Props) {
               <Link className="secondary-button px-4 py-2.5 text-xs sm:text-sm" href="/privacidade">
                 Privacidade
               </Link>
+              <Link className="secondary-button px-4 py-2.5 text-xs sm:text-sm" href="/lgpd">
+                LGPD
+              </Link>
+              {salesWhatsAppUrl ? (
+                <a className="secondary-button px-4 py-2.5 text-xs sm:text-sm" href={salesWhatsAppUrl} rel="noreferrer" target="_blank">
+                  WhatsApp comercial
+                </a>
+              ) : null}
             </div>
           </div>
 
           <div className="mt-4 flex flex-col gap-2 border-t border-[color:var(--color-line)] pt-4 text-xs text-[color:var(--color-muted)] sm:flex-row sm:items-center sm:justify-between">
-            <span>Zap Automation (c) 2026. Atendimento, vendas e operação conectados em um único painel.</span>
-            <span>Feito para empresas que querem responder melhor, vender mais e crescer com consistência.</span>
+            <span>Zap Automation (c) 2026. Atendimento, vendas e operacao conectados em um unico painel.</span>
+            <span>
+              Feito para empresas que querem responder melhor, vender mais e crescer com consistencia.
+              {sitePublicConfig.legalEmail ? ` Contato legal: ${sitePublicConfig.legalEmail}.` : ""}
+            </span>
           </div>
         </div>
       </div>

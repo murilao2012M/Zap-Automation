@@ -103,7 +103,10 @@ class PlanService:
         active_rules = await self.db.automation_rules.count_documents({"tenant_id": tenant_id})
         active_flows = await self.db.automation_flows.count_documents({"tenant_id": tenant_id})
         active_templates = await self.db.message_templates.count_documents({"tenant_id": tenant_id})
-        numbers_connected = 1 if tenant.get("meta_phone_number_id") else 0
+        numbers_connected = 1 if (
+            tenant.get("meta_phone_number_id")
+            or (tenant.get("channel_provider") == "twilio" and tenant.get("twilio_whatsapp_number"))
+        ) else 0
 
         metrics = {
             "monthly_messages": monthly_messages,
@@ -131,7 +134,19 @@ class PlanService:
 
         onboarding = [
             {"key": "signup", "label": "Conta criada", "completed": True},
-            {"key": "channel", "label": "Canal Meta configurado", "completed": bool(tenant.get("meta_phone_number_id") and tenant.get("meta_access_token"))},
+            {
+                "key": "channel",
+                "label": "Canal WhatsApp conectado",
+                "completed": bool(
+                    (tenant.get("channel_provider") == "meta" and tenant.get("meta_phone_number_id") and tenant.get("meta_access_token"))
+                    or (
+                        tenant.get("channel_provider") == "twilio"
+                        and tenant.get("twilio_account_sid")
+                        and tenant.get("twilio_auth_token")
+                        and tenant.get("twilio_whatsapp_number")
+                    )
+                ),
+            },
             {"key": "rules", "label": "Primeiras regras publicadas", "completed": active_rules > 0},
             {"key": "flow", "label": "Fluxo por intencao criado", "completed": active_flows > 0},
             {"key": "team", "label": "Equipe cadastrada", "completed": active_users > 1},

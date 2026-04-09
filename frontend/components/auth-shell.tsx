@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 
 import { getPlans, type Plan } from "@/lib/api";
+import { buildWhatsAppUrl, sitePublicConfig } from "@/lib/site-config";
 import { LoginForm } from "@/components/login-form";
 import { SiteFooter } from "@/components/site-footer";
 import { SignupForm } from "@/components/signup-form";
@@ -15,6 +16,11 @@ export function AuthShell() {
   const [activeTab, setActiveTab] = useState<Tab>("signup");
   const [plans, setPlans] = useState<Plan[]>([]);
   const [plansError, setPlansError] = useState("");
+  const salesWhatsAppUrl = buildWhatsAppUrl(
+    sitePublicConfig.contactWhatsApp,
+    "Oi! Quero agendar uma demo do Zap Automation.",
+  );
+  const demoUrl = sitePublicConfig.demoUrl || salesWhatsAppUrl;
 
   useEffect(() => {
     async function loadPlans() {
@@ -68,6 +74,18 @@ export function AuthShell() {
               <span className="secondary-button px-4 py-2 text-xs sm:text-sm">Onboarding em poucos minutos</span>
               <span className="secondary-button px-4 py-2 text-xs sm:text-sm">Fluxos por nicho</span>
               <span className="secondary-button px-4 py-2 text-xs sm:text-sm">Operação com handoff humano</span>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              {demoUrl ? (
+                <a className="primary-button px-5 py-3 text-sm" href={demoUrl} rel="noreferrer" target="_blank">
+                  Agendar demo
+                </a>
+              ) : null}
+              {salesWhatsAppUrl ? (
+                <a className="secondary-button px-5 py-3 text-sm" href={salesWhatsAppUrl} rel="noreferrer" target="_blank">
+                  Falar com comercial
+                </a>
+              ) : null}
             </div>
           </div>
 
@@ -159,6 +177,10 @@ export function AuthShell() {
                   {plan.checkout_url ? (
                     <a className="secondary-button mt-4 inline-flex w-full items-center justify-center" href={plan.checkout_url} rel="noreferrer" target="_blank">
                       Comprar plano
+                    </a>
+                  ) : salesWhatsAppUrl ? (
+                    <a className="secondary-button mt-4 inline-flex w-full items-center justify-center" href={salesWhatsAppUrl} rel="noreferrer" target="_blank">
+                      Falar com comercial
                     </a>
                   ) : null}
                 </article>

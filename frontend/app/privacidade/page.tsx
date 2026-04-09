@@ -1,3 +1,5 @@
+import { sitePublicConfig } from "@/lib/site-config";
+
 export default function PrivacyPage() {
   return (
     <main className="mx-auto min-h-screen w-full max-w-[980px] px-4 py-10 sm:px-6 lg:px-8">
@@ -10,36 +12,41 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold text-[color:var(--color-ink)]">1. Dados coletados</h2>
             <p className="mt-2">
-              Coletamos informações necessárias para autenticação, operação da conta, histórico de
-              conversas, integração com provedores e uso da plataforma.
+              Coletamos dados de autenticacao, empresas, usuarios, historico de conversas,
+              configuracoes de automacao, eventos operacionais e informacoes minimas para manter o
+              servico ativo e auditavel.
             </p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-[color:var(--color-ink)]">2. Finalidade</h2>
             <p className="mt-2">
-              Os dados são utilizados para viabilizar atendimento automatizado, operação comercial,
-              auditoria técnica, suporte e evolução da experiência do cliente.
+              Os dados sao usados para executar atendimento automatizado, operacao comercial,
+              seguranca da conta, suporte tecnico, faturamento, auditoria e evolucao controlada da
+              plataforma.
             </p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-[color:var(--color-ink)]">3. Compartilhamento</h2>
             <p className="mt-2">
-              O compartilhamento ocorre apenas quando necessário para execução do serviço, como nas
-              integrações com infraestrutura, Meta, Twilio ou parceiros operacionais autorizados.
+              O compartilhamento ocorre apenas quando necessario para a execucao do servico, como em
+              integracoes com infraestrutura, Meta, Twilio, monitoramento de erros e parceiros
+              operacionais autorizados.
             </p>
           </section>
           <section>
-            <h2 className="text-lg font-semibold text-[color:var(--color-ink)]">4. Segurança</h2>
+            <h2 className="text-lg font-semibold text-[color:var(--color-ink)]">4. Seguranca</h2>
             <p className="mt-2">
-              Adotamos controles de acesso, separação por tenant, autenticação e medidas técnicas
-              para reduzir exposição indevida de dados e credenciais.
+              Adotamos separacao por tenant, autenticacao, logs operacionais, controles de acesso e
+              mecanismos para reduzir exposicao indevida de dados, credenciais e conteudo sensivel.
             </p>
           </section>
           <section>
-            <h2 className="text-lg font-semibold text-[color:var(--color-ink)]">5. Solicitações</h2>
+            <h2 className="text-lg font-semibold text-[color:var(--color-ink)]">5. Retencao e solicitacoes</h2>
             <p className="mt-2">
-              Solicitações de ajuste, exclusão, exportação ou suporte relacionados à conta devem ser
-              encaminhadas pelos canais oficiais da empresa responsável pela contratação.
+              Dados podem ser mantidos enquanto houver contrato ativo ou necessidade legal e
+              operacional. Solicitacoes de acesso, correcao, exportacao ou exclusao devem ser
+              encaminhadas pelos canais oficiais da empresa contratante.
+              {sitePublicConfig.legalEmail ? ` Contato principal: ${sitePublicConfig.legalEmail}.` : ""}
             </p>
           </section>
         </div>

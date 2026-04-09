@@ -8,7 +8,9 @@
 - Publicar frontend com HTTPS.
 - Publicar backend com HTTPS, CORS restrito e variaveis seguras.
 - Configurar monitoramento de uptime e erro para frontend e backend.
+- Apontar monitores para `GET /healthz`, `GET /readyz` e `GET /api/health`.
 - Rotacionar todos os segredos antes do go-live.
+- Substituir o acesso `0.0.0.0/0` do Atlas pelos IPs de saida da Render.
 
 ## Backend pronto para producao
 
@@ -24,8 +26,10 @@
 - Revisar onboarding guiado de primeira conexao com WhatsApp.
 - Conferir checkout e links comerciais dos planos Starter e Smarter.
 - Revisar paginas de Termos, Privacidade e LGPD com apoio juridico.
+- Configurar `SENTRY_DSN` no backend e `NEXT_PUBLIC_SENTRY_DSN` no frontend se for usar Sentry.
 - Garantir mensagem comercial clara no topo da landing e nas CTAs.
 - Definir canal oficial de contato comercial por WhatsApp.
+- Sair do sandbox da Twilio e registrar um sender proprio para producao.
 
 ## Operacao do cliente
 
@@ -38,6 +42,7 @@
 
 1. Subir Mongo, Redis, backend e frontend no ambiente final.
 2. Rodar smoke test de cadastro, login, dashboard, catalogo e webhook.
-3. Conectar numero de WhatsApp real de demonstração.
-4. Publicar landing com CTA comercial e oferta inicial simples.
-5. Ativar monitoramento e acompanhar os primeiros acessos em tempo real.
+3. Conectar um sender WhatsApp real e confirmar envio/recebimento fora do sandbox.
+4. Publicar landing com CTA comercial, dominio proprio e oferta inicial simples.
+5. Ativar monitoramento, acompanhar os primeiros acessos em tempo real e revisar eventos operacionais.
+6. Rodar o playbook de pilotos com 2 ou 3 empresas antes de abrir captacao em maior escala.

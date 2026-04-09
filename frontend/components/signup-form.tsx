@@ -154,6 +154,10 @@ export function SignupForm({ onSwitchToLogin }: Props) {
           e com a{" "}
           <Link className="font-semibold text-[color:var(--color-copper)] transition hover:text-[color:var(--color-brand)]" href="/privacidade" target="_blank">
             política de privacidade
+          </Link>{" "}
+          e li as diretrizes de{" "}
+          <Link className="font-semibold text-[color:var(--color-copper)] transition hover:text-[color:var(--color-brand)]" href="/lgpd" target="_blank">
+            tratamento de dados LGPD
           </Link>
           .
         </span>

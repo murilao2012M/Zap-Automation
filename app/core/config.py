@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     twilio_auth_token: str = ""
     twilio_whatsapp_number: str = ""
     openai_api_key: str = ""
+    sentry_dsn: str = ""
+    sentry_traces_sample_rate: float = 0.1
+    sentry_profiles_sample_rate: float = 0.0
+    sentry_send_default_pii: bool = False
+    sentry_enable_logs: bool = True
     public_checkout_starter_url: str = ""
     public_checkout_smarter_url: str = ""
     public_contact_whatsapp: str = ""

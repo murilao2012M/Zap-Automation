@@ -292,6 +292,12 @@ export type WhatsAppChannelConfig = {
   tenant_id: string;
   connected: boolean;
   provider: "simulation" | "meta" | "twilio";
+  provider_label: string;
+  sandbox_mode: boolean;
+  requires_assisted_setup: boolean;
+  setup_stage: "simulation" | "connect_channel" | "validate_channel" | "ready";
+  setup_title: string;
+  setup_detail: string;
   phone_number_id?: string | null;
   business_account_id?: string | null;
   api_version: string;

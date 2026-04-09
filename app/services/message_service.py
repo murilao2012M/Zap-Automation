@@ -219,6 +219,7 @@ class MessageService:
         metadata: dict[str, Any] | None = None,
         template_name: str | None = None,
         body_parameters: list[str] | None = None,
+        require_provider_delivery: bool = False,
     ) -> Message:
         provider_result = await self._dispatch_provider_message(
             tenant=tenant,
@@ -228,6 +229,68 @@ class MessageService:
             template_name=template_name,
             body_parameters=body_parameters,
         )
+        channel_provider = tenant.get("channel_provider", "simulation")
+        if require_provider_delivery:
+            if channel_provider == "twilio":
+                missing_credentials = [
+                    field_name
+                    for field_name in ("twilio_account_sid", "twilio_auth_token", "twilio_whatsapp_number")
+                    if not tenant.get(field_name)
+                ]
+                if missing_credentials:
+                    await self._record_operation_event(
+                        tenant_id=tenant["id"],
+                        level="error",
+                        category="provider_delivery",
+                        title="Twilio incompleto para resposta manual",
+                        detail="Preencha SID, Auth Token e numero WhatsApp da Twilio antes de responder pelo painel.",
+                        metadata={"missing_fields": missing_credentials, "contact_phone": contact.phone},
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Canal Twilio incompleto. Revise SID, Auth Token e numero WhatsApp em Operacoes > Canal WhatsApp.",
+                    )
+                if isinstance(provider_result, dict) and provider_result.get("error"):
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=f"Twilio recusou a entrega: {provider_result['error']}",
+                    )
+                if provider_result is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail="A resposta nao foi entregue pela Twilio. Confira o sender, a janela de atendimento e os logs da integracao.",
+                    )
+
+            if channel_provider == "meta":
+                missing_credentials = [
+                    field_name
+                    for field_name in ("meta_access_token", "meta_phone_number_id")
+                    if not tenant.get(field_name)
+                ]
+                if missing_credentials:
+                    await self._record_operation_event(
+                        tenant_id=tenant["id"],
+                        level="error",
+                        category="provider_delivery",
+                        title="Meta incompleta para resposta manual",
+                        detail="Preencha token e Phone Number ID da Meta antes de responder pelo painel.",
+                        metadata={"missing_fields": missing_credentials, "contact_phone": contact.phone},
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Canal Meta incompleto. Revise token e Phone Number ID em Operacoes > Canal WhatsApp.",
+                    )
+                if isinstance(provider_result, dict) and provider_result.get("error"):
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=f"Meta recusou a entrega: {provider_result['error']}",
+                    )
+                if provider_result is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail="A resposta nao foi entregue pela Meta. Confira a configuracao do numero e os logs da integracao.",
+                    )
+
         final_metadata = {
             **(metadata or {}),
             "provider": (
@@ -419,6 +482,7 @@ class MessageService:
                 "agent_id": current_user.get("id"),
                 "agent_name": current_user.get("name"),
             },
+            require_provider_delivery=True,
         )
 
         now = datetime.now(timezone.utc)

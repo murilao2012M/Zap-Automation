@@ -53,6 +53,60 @@ type Props = {
   onSaveChannel: (event: React.FormEvent<HTMLFormElement>) => void;
 };
 
+type GuidedStep = {
+  key: string;
+  title: string;
+  description: string;
+  completed: boolean;
+};
+
+function isTwilioSandboxNumber(value?: string | null): boolean {
+  if (!value) return false;
+  const normalized = value.replace(/[^\d+]/g, "");
+  return normalized === "+14155238886" || normalized === "14155238886";
+}
+
+function buildGuidedSteps(channelConfig: WhatsAppChannelConfig | null): GuidedStep[] {
+  const providerChosen = Boolean(channelConfig && channelConfig.provider !== "simulation");
+  const connected = Boolean(channelConfig?.connected);
+  const validated = Boolean(channelConfig?.connected && !channelConfig?.sandbox_mode);
+
+  return [
+    {
+      key: "choose_provider",
+      title: "Escolher o canal",
+      description: providerChosen
+        ? `${channelConfig?.provider_label ?? "Canal"} selecionado para esta operacao.`
+        : "Defina primeiro o canal que vai representar a empresa.",
+      completed: providerChosen,
+    },
+    {
+      key: "connect_number",
+      title: "Conectar o numero",
+      description: connected
+        ? "As credenciais principais foram salvas e o numero ja esta conectado."
+        : "Salve as credenciais do provedor para liberar envio e recebimento reais.",
+      completed: connected,
+    },
+    {
+      key: "validate_channel",
+      title: "Validar e operar",
+      description: validated
+        ? "Canal pronto para uso diario da equipe."
+        : channelConfig?.sandbox_mode
+          ? "O canal ainda esta em sandbox. Termine a migracao para um sender proprio antes do go-live."
+          : "Envie uma conversa real, confira os eventos operacionais e confirme o recebimento no WhatsApp.",
+      completed: validated,
+    },
+  ];
+}
+
+function channelStepTone(completed: boolean): string {
+  return completed
+    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+    : "border-[color:var(--color-line)] bg-[color:var(--color-sand)] text-[color:var(--color-muted)]";
+}
+
 export function OperationsPanel({
   teamForm,
   me,
@@ -91,8 +145,21 @@ export function OperationsPanel({
   onVerifyWebhook,
   onSaveChannel,
 }: Props) {
+  const publicApiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+  const twilioWebhookUrl = publicApiUrl ? `${publicApiUrl}/api/v1/webhook/whatsapp/twilio` : "/api/v1/webhook/whatsapp/twilio";
+  const twilioNumber = channelForm.twilio_whatsapp_number ?? channelConfig?.twilio_whatsapp_number ?? "";
+  const twilioSandboxActive = channelForm.provider === "twilio" && isTwilioSandboxNumber(twilioNumber);
   const onboardingSteps = dashboard?.onboarding ?? [];
   const completedOnboarding = onboardingSteps.filter((step) => step.completed).length;
+  const guidedSteps = buildGuidedSteps(channelConfig);
+  const guidedStepsCompleted = guidedSteps.filter((step) => step.completed).length;
+  const setupTone =
+    channelConfig?.setup_stage === "ready"
+      ? "border-emerald-200 bg-emerald-50"
+      : channelConfig?.setup_stage === "validate_channel"
+        ? "border-amber-200 bg-amber-50"
+        : "border-[color:var(--color-line)] bg-[color:var(--color-sand)]";
+  const showAdvancedConfigByDefault = channelForm.provider !== "simulation" && !channelConfig?.connected;
   const providerGuide =
     channelForm.provider === "meta"
       ? [
@@ -110,6 +177,24 @@ export function OperationsPanel({
             "Use o modo de simulação para validar a operação.",
             "Teste regras, fluxos e handoff sem enviar mensagens reais.",
             "Quando estiver pronto, troque para Meta ou Twilio.",
+          ];
+  const channelGuideSteps =
+    channelForm.provider === "meta"
+      ? [
+          "Escolha o numero da empresa na Meta e confirme o acesso da conta comercial.",
+          "Preencha Phone Number ID, Business Account ID e Access Token na configuracao avancada.",
+          "Valide o webhook, envie uma conversa real e confirme a entrega antes do go-live.",
+        ]
+      : channelForm.provider === "twilio"
+        ? [
+            "Defina se a operacao vai seguir em sandbox ou com sender proprio da Twilio.",
+            "Salve Account SID, Auth Token e o numero WhatsApp na configuracao avancada.",
+            `Aponte o webhook da Twilio para ${twilioWebhookUrl} e envie uma mensagem real para validar o canal.`,
+          ]
+        : [
+            "Use a simulacao para validar regras, fluxos e handoff sem mexer em credenciais.",
+            "Quando estiver pronto, escolha Twilio ou Meta para liberar o envio oficial.",
+            "Depois da conexao, volte aqui para validar o canal e colocar a equipe em operacao.",
           ];
 
   return (
@@ -201,6 +286,50 @@ export function OperationsPanel({
           <span className="pill">Canal WhatsApp</span>
           <h2 className="panel-title">Conexão guiada com o canal</h2>
           <form className="mt-5 grid gap-4" onSubmit={onSaveChannel}>
+            <div className={`rounded-[28px] border px-4 py-4 ${setupTone}`}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-muted)]">
+                    Status do canal
+                  </p>
+                  <h3 className="mt-2 text-lg font-semibold text-[color:var(--color-ink)]">
+                    {channelConfig?.setup_title ?? "Escolha um canal para operar"}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[color:var(--color-muted)]">
+                    {channelConfig?.setup_detail ?? "Conecte um numero real quando estiver pronto para sair do modo de simulacao."}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="pill">{channelConfig?.provider_label ?? "Simulacao local"}</span>
+                  {channelConfig?.sandbox_mode ? <span className="pill">Sandbox</span> : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              {guidedSteps.map((step, index) => (
+                <article key={step.key} className={`rounded-[24px] border px-4 py-4 ${channelStepTone(step.completed)}`}>
+                  <div className="flex items-start gap-3">
+                    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/70 text-xs font-semibold text-[color:var(--color-ink)]">
+                      {index + 1}
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold">{step.title}</p>
+                      <p className="mt-2 text-sm leading-6">{step.description}</p>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="section-shell px-4 py-4">
+              <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-muted)]">
+                Escolha o canal
+              </label>
+              <p className="mt-3 text-sm leading-6 text-[color:var(--color-muted)]">
+                O cliente final pode enxergar apenas este fluxo guiado. A configuracao tecnica fica mais abaixo para implantacao assistida.
+              </p>
+            </div>
             <select className="field-input" value={channelForm.provider ?? "simulation"} onChange={(event) => onChannelChange({ ...channelForm, provider: event.target.value as WhatsAppChannelConfigPayload["provider"] })}>
               <option value="simulation">Simulação local</option>
               <option value="twilio">Twilio WhatsApp</option>
@@ -208,11 +337,41 @@ export function OperationsPanel({
             </select>
 
             {channelForm.provider === "twilio" ? (
+              <div className="soft-card text-sm text-[color:var(--color-muted)]">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-muted)]">
+                  Webhook de entrada
+                </p>
+                <p className="mt-2 break-all text-sm font-semibold text-[color:var(--color-ink)]">{twilioWebhookUrl}</p>
+                <p className="mt-2 text-sm leading-6 text-[color:var(--color-muted)]">
+                  Configure esta URL na Twilio em <strong className="text-[color:var(--color-ink)]">When a message comes in</strong> com metodo <strong className="text-[color:var(--color-ink)]">POST</strong>.
+                </p>
+              </div>
+            ) : null}
+
+            {twilioSandboxActive ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                O numero {twilioNumber} ainda esta em sandbox. Ele serve para testes internos, mas para lancar o produto voce precisa trocar para um sender proprio.
+              </div>
+            ) : null}
+
+            {channelConfig?.requires_assisted_setup ? (
+              <div className="soft-card text-sm leading-6 text-[color:var(--color-muted)]">
+                Esta etapa costuma funcionar melhor como implantacao assistida. O cliente acompanha o status por aqui, enquanto a configuracao tecnica fica protegida.
+              </div>
+            ) : null}
+
+            {channelForm.provider !== "simulation" ? (
+              <details className="section-shell px-4 py-4" open={showAdvancedConfigByDefault}>
+                <summary className="cursor-pointer text-sm font-semibold text-[color:var(--color-ink)]">
+                  Mostrar configuracao tecnica
+                </summary>
+                <div className="mt-4 grid gap-3">
+                  {channelForm.provider === "twilio" ? (
               <>
                 <input className="field-input" value={channelForm.twilio_account_sid ?? ""} onChange={(event) => onChannelChange({ ...channelForm, twilio_account_sid: event.target.value })} placeholder="Twilio Account SID" />
                 <input className="field-input" type="password" value={channelForm.twilio_auth_token ?? ""} onChange={(event) => onChannelChange({ ...channelForm, twilio_auth_token: event.target.value })} placeholder="Twilio Auth Token" />
                 <input className="field-input" value={channelForm.twilio_whatsapp_number ?? ""} onChange={(event) => onChannelChange({ ...channelForm, twilio_whatsapp_number: event.target.value })} placeholder="Número WhatsApp da Twilio" />
-                <div className="soft-card text-sm text-[color:var(--color-muted)]">
+                <div className="hidden soft-card text-sm text-[color:var(--color-muted)]">
                   Webhook Twilio: <strong className="text-[color:var(--color-ink)]">POST /api/v1/webhook/whatsapp/twilio</strong>
                 </div>
               </>
@@ -226,13 +385,27 @@ export function OperationsPanel({
                 <input className="field-input" type="password" value={channelForm.access_token ?? ""} onChange={(event) => onChannelChange({ ...channelForm, access_token: event.target.value })} placeholder="Access token da Meta" />
               </>
             ) : null}
+                </div>
+                {channelConfig?.access_token_hint || channelConfig?.twilio_account_sid_hint ? (
+                  <div className="mt-3 text-sm text-[color:var(--color-muted)]">
+                    {channelConfig?.access_token_hint ? <span>Token salvo: {channelConfig.access_token_hint}</span> : null}
+                    {channelConfig?.access_token_hint && channelConfig?.twilio_account_sid_hint ? <span> | </span> : null}
+                    {channelConfig?.twilio_account_sid_hint ? <span>SID salvo: {channelConfig.twilio_account_sid_hint}</span> : null}
+                  </div>
+                ) : null}
+              </details>
+            ) : (
+              <div className="soft-card text-sm leading-6 text-[color:var(--color-muted)]">
+                A simulacao fica ativa para treinamento da equipe e validacao interna. Quando estiver pronto para usar um numero real, troque o provedor acima.
+              </div>
+            )}
 
             <div className="section-shell px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-muted)]">
                 Guia rápido
               </p>
               <div className="mt-3 grid gap-2">
-                {providerGuide.map((step, index) => (
+                {channelGuideSteps.map((step, index) => (
                   <div key={step} className="flex items-start gap-3 text-sm leading-6 text-[color:var(--color-muted)]">
                     <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-brand-soft)] text-[11px] font-semibold text-[color:var(--color-brand)]">
                       {index + 1}
@@ -244,6 +417,12 @@ export function OperationsPanel({
             </div>
 
             <div className="soft-card text-sm text-[color:var(--color-muted)]">
+              Status atual: <strong className="text-[color:var(--color-ink)]">{channelConfig?.connected ? "Conectado" : "Nao conectado"}</strong>
+              <span> | canal: {channelConfig?.provider_label ?? "Simulacao local"}</span>
+              {channelConfig?.sandbox_mode ? <span> | modo: sandbox</span> : null}
+            </div>
+
+            <div className="hidden soft-card text-sm text-[color:var(--color-muted)]">
               Status: <strong className="text-[color:var(--color-ink)]">{channelConfig?.connected ? "Conectado" : "Não conectado"}</strong>
               <span> | provedor: {channelConfig?.provider ?? "simulation"}</span>
               {channelConfig?.access_token_hint ? <span> | token: {channelConfig.access_token_hint}</span> : null}

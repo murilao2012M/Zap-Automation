@@ -7,9 +7,35 @@ type ApiEnvelope<T> = {
 };
 
 type ApiError = {
-  detail?: string;
+  detail?:
+    | string
+    | Array<{
+        msg?: string;
+        loc?: Array<string | number>;
+      }>;
   message?: string;
 };
+
+function normalizeApiDetail(detail: ApiError["detail"]): string | undefined {
+  if (typeof detail === "string") {
+    return detail;
+  }
+
+  if (Array.isArray(detail) && detail.length > 0) {
+    const firstError = detail[0];
+    if (!firstError) {
+      return undefined;
+    }
+
+    const location = Array.isArray(firstError.loc) ? firstError.loc.slice(1).join(".") : "";
+    if (firstError.msg && location) {
+      return `${location}: ${firstError.msg}`;
+    }
+    return firstError.msg;
+  }
+
+  return undefined;
+}
 
 function mapApiErrorMessage(status: number, message?: string): string {
   if (status === 401) {
@@ -43,7 +69,7 @@ async function parseJson<T>(response: Response): Promise<T> {
 
   const payload = (await response.json()) as ApiEnvelope<T> | ApiError;
   if (!response.ok) {
-    const detail = "detail" in payload && payload.detail ? payload.detail : undefined;
+    const detail = "detail" in payload ? normalizeApiDetail(payload.detail) : undefined;
     const message = "message" in payload && payload.message ? payload.message : undefined;
     throw new Error(mapApiErrorMessage(response.status, detail ?? message));
   }
